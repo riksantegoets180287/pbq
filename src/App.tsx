@@ -3,25 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PubquizData, Team, Round } from './types';
-import { 
-  loadPubquizData, 
-  savePubquizData, 
-  clearPubquizData, 
-  DEFAULT_PUBQUIZ_DATA, 
-  EMPTY_PUBQUIZ_DATA 
-} from './utils/storage';
+import { DEFAULT_PUBQUIZ_DATA, EMPTY_PUBQUIZ_DATA } from './utils/pubquizDefaults';
+import {
+  loadPubquizData,
+  replaceQuizData,
+  saveQuizTitle,
+  insertTeam,
+  renameTeam,
+  deleteTeam,
+  insertRound,
+  renameRound,
+  deleteRound,
+  saveScore,
+} from './utils/pubquizApi';
 import { Navbar } from './components/Navbar';
 import { ScoreTable } from './components/ScoreTable';
 import { Leaderboard } from './components/Leaderboard';
 import { BeamerView } from './components/BeamerView';
 import { ConfirmModal } from './components/ConfirmModal';
 
+const SCORE_SAVE_DELAY_MS = 400;
+
 export default function App() {
-  const [quizData, setQuizData] = useState<PubquizData>(() => loadPubquizData());
+  const [quizData, setQuizData] = useState<PubquizData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'scores' | 'leaderboard' | 'beamer'>('scores');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const scoreSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Modal confirmation state
   const [confirmModal, setConfirmModal] = useState<{
@@ -37,20 +47,38 @@ export default function App() {
     onConfirm: () => {},
   });
 
-  // Automatically sync to localStorage on quizData changes
   useEffect(() => {
-    savePubquizData(quizData);
-  }, [quizData]);
+    let active = true;
+    loadPubquizData()
+      .then((data) => {
+        if (active) setQuizData(data);
+      })
+      .catch((err: Error) => {
+        if (active) setLoadError(err.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  // Title update
-  const handleUpdateTitle = (title: string) => {
-    setQuizData((prev) => ({
-      ...prev,
-      title,
-    }));
+  const persist = (action: () => Promise<unknown>) => {
+    action()
+      .then(() => {
+        setSaveError(null);
+        setQuizData((prev) => (prev ? { ...prev, lastSavedAt: Date.now() } : prev));
+      })
+      .catch((err: Error) => setSaveError(err.message));
   };
 
-  // Add team
+  const updateQuiz = (updater: (prev: PubquizData) => PubquizData) => {
+    setQuizData((prev) => (prev ? updater(prev) : prev));
+  };
+
+  const handleUpdateTitle = (title: string) => {
+    updateQuiz((prev) => ({ ...prev, title }));
+    persist(() => saveQuizTitle(title));
+  };
+
   const handleAddTeam = (name: string) => {
     const newTeam: Team = {
       id: `team-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -58,7 +86,7 @@ export default function App() {
       createdAt: Date.now(),
     };
 
-    setQuizData((prev) => ({
+    updateQuiz((prev) => ({
       ...prev,
       teams: [...prev.teams, newTeam],
       scores: {
@@ -66,17 +94,17 @@ export default function App() {
         [newTeam.id]: {},
       },
     }));
+    persist(() => insertTeam(newTeam));
   };
 
-  // Rename team
   const handleRenameTeam = (teamId: string, newName: string) => {
-    setQuizData((prev) => ({
+    updateQuiz((prev) => ({
       ...prev,
       teams: prev.teams.map((t) => (t.id === teamId ? { ...t, name: newName } : t)),
     }));
+    persist(() => renameTeam(teamId, newName));
   };
 
-  // Delete team request
   const handleDeleteTeam = (team: Team) => {
     setConfirmModal({
       isOpen: true,
@@ -84,7 +112,7 @@ export default function App() {
       message: `Weet je zeker dat je het team "${team.name}" wilt verwijderen? Alle ingevoerde scores van dit team worden ook verwijderd.`,
       confirmLabel: 'Team verwijderen',
       onConfirm: () => {
-        setQuizData((prev) => {
+        updateQuiz((prev) => {
           const nextScores = { ...prev.scores };
           delete nextScores[team.id];
           return {
@@ -93,37 +121,36 @@ export default function App() {
             scores: nextScores,
           };
         });
+        persist(() => deleteTeam(team.id));
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
 
-  // Add round
   const handleAddRound = (customName?: string) => {
-    setQuizData((prev) => {
-      const nextRoundNumber = prev.rounds.length + 1;
-      const newRound: Round = {
-        id: `round-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        name: customName || `Ronde ${nextRoundNumber}`,
-        roundNumber: nextRoundNumber,
-      };
+    if (!quizData) return;
+    const nextRoundNumber = quizData.rounds.length + 1;
+    const newRound: Round = {
+      id: `round-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: customName || `Ronde ${nextRoundNumber}`,
+      roundNumber: nextRoundNumber,
+    };
 
-      return {
-        ...prev,
-        rounds: [...prev.rounds, newRound],
-      };
-    });
+    updateQuiz((prev) => ({
+      ...prev,
+      rounds: [...prev.rounds, newRound],
+    }));
+    persist(() => insertRound(newRound));
   };
 
-  // Rename round
   const handleRenameRound = (roundId: string, newName: string) => {
-    setQuizData((prev) => ({
+    updateQuiz((prev) => ({
       ...prev,
       rounds: prev.rounds.map((r) => (r.id === roundId ? { ...r, name: newName } : r)),
     }));
+    persist(() => renameRound(roundId, newName));
   };
 
-  // Delete round request
   const handleDeleteRound = (round: Round) => {
     setConfirmModal({
       isOpen: true,
@@ -131,9 +158,8 @@ export default function App() {
       message: `Weet je zeker dat je "${round.name}" wilt verwijderen? Alle punten behaald in deze ronde gaan verloren.`,
       confirmLabel: 'Ronde verwijderen',
       onConfirm: () => {
-        setQuizData((prev) => {
+        updateQuiz((prev) => {
           const nextScores = { ...prev.scores };
-          // Remove scores for this round from all teams
           Object.keys(nextScores).forEach((teamId) => {
             const teamScores = { ...nextScores[teamId] };
             delete teamScores[round.id];
@@ -146,14 +172,14 @@ export default function App() {
             scores: nextScores,
           };
         });
+        persist(() => deleteRound(round.id));
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
 
-  // Update a single score
   const handleUpdateScore = (teamId: string, roundId: string, value: number | null) => {
-    setQuizData((prev) => {
+    updateQuiz((prev) => {
       const teamScores = prev.scores[teamId] ? { ...prev.scores[teamId] } : {};
       if (value === null) {
         delete teamScores[roundId];
@@ -169,20 +195,19 @@ export default function App() {
         },
       };
     });
-    setHasUnsavedChanges(true);
+
+    const timerKey = `${teamId}|${roundId}`;
+    const pendingTimer = scoreSaveTimers.current.get(timerKey);
+    if (pendingTimer) clearTimeout(pendingTimer);
+    scoreSaveTimers.current.set(
+      timerKey,
+      setTimeout(() => {
+        scoreSaveTimers.current.delete(timerKey);
+        persist(() => saveScore(teamId, roundId, value));
+      }, SCORE_SAVE_DELAY_MS),
+    );
   };
 
-  // Save scores manually
-  const handleSaveScores = () => {
-    savePubquizData(quizData);
-    setQuizData((prev) => ({
-      ...prev,
-      lastSavedAt: Date.now(),
-    }));
-    setHasUnsavedChanges(false);
-  };
-
-  // Clear all data request
   const handleRequestClearAll = () => {
     setConfirmModal({
       isOpen: true,
@@ -190,25 +215,39 @@ export default function App() {
       message: 'Weet je zeker dat je alle teams, rondes en ingevoerde scores wilt wissen? Dit kan niet ongedaan worden gemaakt.',
       confirmLabel: 'Ja, alles wissen',
       onConfirm: () => {
-        clearPubquizData();
-        setQuizData({
-          ...EMPTY_PUBQUIZ_DATA,
-          lastSavedAt: Date.now(),
-        });
-        setHasUnsavedChanges(false);
+        setQuizData({ ...EMPTY_PUBQUIZ_DATA, lastSavedAt: Date.now() });
+        persist(() => replaceQuizData(EMPTY_PUBQUIZ_DATA));
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
 
-  // Load sample data
   const handleLoadSampleData = () => {
-    setQuizData({
-      ...DEFAULT_PUBQUIZ_DATA,
-      lastSavedAt: Date.now(),
-    });
-    setHasUnsavedChanges(false);
+    setQuizData({ ...DEFAULT_PUBQUIZ_DATA, lastSavedAt: Date.now() });
+    persist(() => replaceQuizData(DEFAULT_PUBQUIZ_DATA));
   };
+
+  if (!quizData) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+        {loadError ? (
+          <div className="max-w-md text-center space-y-2">
+            <p className="font-semibold text-rose-300">De pubquiz kon niet worden geladen.</p>
+            <p className="text-sm text-slate-400">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-sm rounded-xl transition-colors cursor-pointer"
+            >
+              Opnieuw proberen
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400">Pubquiz wordt geladen...</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -221,22 +260,31 @@ export default function App() {
         teamCount={quizData.teams.length}
         roundCount={quizData.rounds.length}
         lastSavedAt={quizData.lastSavedAt}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onSaveScores={handleSaveScores}
         onRequestClearAll={handleRequestClearAll}
         onLoadSampleData={handleLoadSampleData}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {saveError && (
+          <div className="mb-6 flex items-center justify-between gap-4 bg-rose-500/10 border border-rose-500/30 text-rose-200 text-sm px-4 py-3 rounded-xl">
+            <span>Let op: wijziging is niet opgeslagen. {saveError}</span>
+            <button
+              type="button"
+              onClick={() => setSaveError(null)}
+              className="text-rose-300 hover:text-white font-semibold cursor-pointer"
+            >
+              Sluiten
+            </button>
+          </div>
+        )}
+
         {activeTab === 'scores' && (
           <ScoreTable
             teams={quizData.teams}
             rounds={quizData.rounds}
             scores={quizData.scores}
-            hasUnsavedChanges={hasUnsavedChanges}
             onUpdateScore={handleUpdateScore}
-            onSaveScores={handleSaveScores}
             onAddTeam={handleAddTeam}
             onRenameTeam={handleRenameTeam}
             onDeleteTeam={handleDeleteTeam}

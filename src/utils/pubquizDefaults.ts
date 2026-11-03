@@ -1,6 +1,4 @@
-import { PubquizData, Team, Round, ScoresState } from '../types';
-
-const STORAGE_KEY = 'pubquiz_scores_v1';
+import { PubquizData } from '../types';
 
 export const DEFAULT_PUBQUIZ_DATA: PubquizData = {
   title: 'Grote Vrijdagmiddag Pubquiz',
@@ -26,7 +24,6 @@ export const DEFAULT_PUBQUIZ_DATA: PubquizData = {
     'team-5': { 'round-1': 8, 'round-2': 6.5, 'round-3': 8, 'round-4': null },
     'team-6': { 'round-1': 7.5, 'round-2': 7.5, 'round-3': 7, 'round-4': null },
   },
-  lastSavedAt: Date.now(),
 };
 
 export const EMPTY_PUBQUIZ_DATA: PubquizData = {
@@ -38,48 +35,4 @@ export const EMPTY_PUBQUIZ_DATA: PubquizData = {
     { id: 'round-3', name: 'Ronde 3', roundNumber: 3 },
   ],
   scores: {},
-  lastSavedAt: Date.now(),
 };
-
-export function loadPubquizData(): PubquizData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return DEFAULT_PUBQUIZ_DATA;
-    }
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.teams) && Array.isArray(parsed.rounds)) {
-      return {
-        title: parsed.title || 'Mijn Pubquiz',
-        teams: parsed.teams,
-        rounds: parsed.rounds,
-        scores: parsed.scores || {},
-        lastSavedAt: parsed.lastSavedAt || Date.now(),
-      };
-    }
-    return DEFAULT_PUBQUIZ_DATA;
-  } catch (err) {
-    console.error('Error loading pubquiz data from localStorage', err);
-    return DEFAULT_PUBQUIZ_DATA;
-  }
-}
-
-export function savePubquizData(data: PubquizData): void {
-  try {
-    const toSave: PubquizData = {
-      ...data,
-      lastSavedAt: Date.now(),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-  } catch (err) {
-    console.error('Error saving pubquiz data to localStorage', err);
-  }
-}
-
-export function clearPubquizData(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (err) {
-    console.error('Error clearing pubquiz data', err);
-  }
-}

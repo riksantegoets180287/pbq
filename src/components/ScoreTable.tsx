@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { 
   Plus, 
   Trash2, 
-  Save, 
   Check, 
   Edit3, 
   Users, 
@@ -18,9 +17,7 @@ interface ScoreTableProps {
   teams: Team[];
   rounds: Round[];
   scores: ScoresState;
-  hasUnsavedChanges: boolean;
   onUpdateScore: (teamId: string, roundId: string, value: number | null) => void;
-  onSaveScores: () => void;
   onAddTeam: (name: string) => void;
   onRenameTeam: (teamId: string, newName: string) => void;
   onDeleteTeam: (team: Team) => void;
@@ -33,9 +30,7 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({
   teams,
   rounds,
   scores,
-  hasUnsavedChanges,
   onUpdateScore,
-  onSaveScores,
   onAddTeam,
   onRenameTeam,
   onDeleteTeam,
@@ -52,8 +47,6 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({
 
   const [isAddingRoundModalOpen, setIsAddingRoundModalOpen] = useState(false);
   const [newRoundTitle, setNewRoundTitle] = useState('');
-
-  const [showSaveToast, setShowSaveToast] = useState(false);
 
   const newTeamInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,14 +94,6 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({
     onAddRound(newRoundTitle.trim() || undefined);
     setNewRoundTitle('');
     setIsAddingRoundModalOpen(false);
-  };
-
-  const handleSaveClick = () => {
-    onSaveScores();
-    setShowSaveToast(true);
-    setTimeout(() => {
-      setShowSaveToast(false);
-    }, 2500);
   };
 
   // Keyboard navigation helper for score inputs (ArrowUp, ArrowDown, Enter)
@@ -198,7 +183,7 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({
           </button>
         </form>
 
-        {/* Round actions & Save Button */}
+        {/* Round actions */}
         <div className="flex items-center gap-3 self-end sm:self-auto">
           <button
             type="button"
@@ -210,28 +195,6 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({
           >
             <Layers className="w-4 h-4 text-amber-400" />
             <span>Ronde toevoegen</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveClick}
-            className={`flex items-center gap-2 px-5 py-2 font-bold text-sm rounded-xl transition-all cursor-pointer shadow-lg ${
-              hasUnsavedChanges
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 ring-2 ring-emerald-400/50 shadow-emerald-500/20'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40'
-            }`}
-          >
-            {showSaveToast ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span>Opgeslagen!</span>
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                <span>{hasUnsavedChanges ? 'Punten opslaan' : 'Punten opslaan'}</span>
-              </>
-            )}
           </button>
         </div>
       </div>
@@ -493,15 +456,6 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({
           <span>
             <strong>Sneltoetsen:</strong> Gebruik <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-200">Enter</kbd> of <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-200">↓ Pijltje omlaag</kbd> om direct door te springen naar het volgende team. Halve punten (bv. 8.5) zijn toegestaan.
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSaveClick}
-            className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline underline-offset-2"
-          >
-            Alle scores direct opslaan
-          </button>
         </div>
       </div>
 

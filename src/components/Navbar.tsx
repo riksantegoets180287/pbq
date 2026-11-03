@@ -19,8 +19,6 @@ interface NavbarProps {
   teamCount: number;
   roundCount: number;
   lastSavedAt?: number;
-  hasUnsavedChanges: boolean;
-  onSaveScores: () => void;
   onRequestClearAll: () => void;
   onLoadSampleData: () => void;
 }
@@ -33,8 +31,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   teamCount,
   roundCount,
   lastSavedAt,
-  hasUnsavedChanges,
-  onSaveScores,
   onRequestClearAll,
   onLoadSampleData,
 }) => {
