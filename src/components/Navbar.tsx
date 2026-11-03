@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Trophy, 
-  Table2, 
-  Tv, 
-  Trash2, 
-  Sparkles, 
-  Check, 
-  Users, 
-  Layers,
-  Edit2
-} from 'lucide-react';
+import { Trophy, Table2, Tv, Trash2, Sparkles, Check, Users, Layers, CreditCard as Edit2 } from 'lucide-react';
 
 interface NavbarProps {
   title: string;

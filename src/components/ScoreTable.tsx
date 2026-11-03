@@ -1,15 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { 
-  Plus, 
-  Trash2, 
-  Check, 
-  Edit3, 
-  Users, 
-  Layers, 
-  HelpCircle,
-  Hash,
-  Award
-} from 'lucide-react';
+import { Plus, Trash2, Check, CreditCard as Edit3, Users, Layers, Circle as HelpCircle, Hash, Award } from 'lucide-react';
 import { Team, Round, ScoresState } from '../types';
 import { getTeamTotalScore } from '../utils/calculations';
 
